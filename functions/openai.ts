@@ -10,10 +10,12 @@ export const API_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 export enum OpenAIModel {
   GPT_3_5_TURBO = "gpt-3.5-turbo",
   GPT_4 = "gpt-4",
+  GPT_O1 = "o1-preview",
+  GPT_O1-mini = "o1-mini",
 }
 
 export interface Message {
-  role: "assistant" | "user" | "system";
+  role: "assistant" | "user";
   content: string;
   name?: string;
 }
@@ -89,6 +91,8 @@ export async function callOpenAI(
     clearTimeout(id);
     if (!response.ok) {
       console.log(response);
+      const responseBody = await response.json();
+      console.log(responseBody);
       return `:warning: Something is wrong with your ChaGPT request (error: ${response.statusText})`;
     } else {
       const responseBody: OpenAIResponse = await response.json();

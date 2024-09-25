@@ -58,6 +58,8 @@ export default SlackFunction(def, async ({ inputs, env, token }) => {
     return { error };
   }
   const messages: Message[] = [];
+
+  messages.push({ role: "user", content: "You're helping out scientists over Slack. Please format your answers in Slack-compatible markdown (e.g. no headers, tables, footnotes, HTML tags. Bold works with single asterisk.)." });
   let isDiscussion = false;
   for (const message of replies.messages || []) {
     if (
@@ -89,22 +91,17 @@ export default SlackFunction(def, async ({ inputs, env, token }) => {
     : OpenAIModel.GPT_3_5_TURBO;
   const maxTokensForThisReply = 1024;
   const modelLimit = model === OpenAIModel.GPT_4 ? 6000 : 4000;
-  const systemMessage = buildSystemMessage(thisAppBotUserId);
-  messages.push(systemMessage); // append this for now but will move it to the beginning later
   while (calculateNumTokens(messages) > modelLimit - maxTokensForThisReply) {
     messages.shift();
   }
-  messages.pop(); // remove the appended system one
-  messages.unshift(systemMessage); // insert the system one as the 1st element
 
   const body = JSON.stringify({
     "model": model,
     "messages": messages,
-    "max_tokens": maxTokensForThisReply,
   });
   console.log(body);
 
-  const answer = await callOpenAI(apiKey, 12, body);
+  const answer = await callOpenAI(apiKey, 60, body);
   const replyResponse = await client.chat.postMessage({
     channel: inputs.channel_id,
     thread_ts: inputs.thread_ts,
