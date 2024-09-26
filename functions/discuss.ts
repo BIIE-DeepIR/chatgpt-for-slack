@@ -59,7 +59,7 @@ export default SlackFunction(def, async ({ inputs, env, token }) => {
   }
   const messages: Message[] = [];
 
-  messages.push({ role: "user", content: "You're helping out scientists over Slack. Please format your answers in Slack-compatible markdown (e.g. no headers, tables, footnotes, HTML tags. Bold works with single asterisk.)." });
+//   messages.push({ role: "user", content: "You're helping out scientists over Slack. Please format your answers in Slack-compatible markdown (e.g. no headers, tables, footnotes, HTML tags. Bold works with single asterisk.)." });
   let isDiscussion = false;
   for (const message of replies.messages || []) {
     if (
@@ -101,7 +101,11 @@ export default SlackFunction(def, async ({ inputs, env, token }) => {
   });
   console.log(body);
 
-  const answer = await callOpenAI(apiKey, 60, body);
+  let answer = await callOpenAI(apiKey, 60, body);
+  answer = answer.replace(/#/g, '*');
+  answer = answer.replace(/\*\*/g, '*');
+  answer = answer.replace(/\*\s\*/g, '*');
+  answer = answer.replace(/\*\*/g, '*');
   const replyResponse = await client.chat.postMessage({
     channel: inputs.channel_id,
     thread_ts: inputs.thread_ts,

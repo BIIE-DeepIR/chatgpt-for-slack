@@ -11,7 +11,7 @@ export enum OpenAIModel {
   GPT_3_5_TURBO = "gpt-3.5-turbo",
   GPT_4 = "gpt-4",
   GPT_O1 = "o1-preview",
-  GPT_O1-mini = "o1-mini",
+  GPT_O1_mini = "o1-mini",
 }
 
 export interface Message {

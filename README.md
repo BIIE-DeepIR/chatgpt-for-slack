@@ -1,24 +1,8 @@
-# ChatGPT on Slack's next-gen platform
+# Latest ChatGPT model to support science on Slack
 
-This app contains a sample TypeScript project for use on Slack's
-[next-generation hosted platform](https://api.slack.com/future). The project
-demonstrates a simple [ChatGPT](https://openai.com/blog/chatgpt) app that runs
-in a Slack channel.
-
-**Guide Outline**:
-
-- [Supported Workflows](#supported-workflows)
-- [Setup](#setup)
-  - [Create Your OpenAI API Account](#create-your-openai-api-account)
-  - [Install the Slack CLI](#install-the-slack-cli)
-  - [Clone the Template](#clone-the-template)
-  - [Save Env Values](#save-env-values)
-- [Create a Link Trigger](#create-a-link-trigger-for-configuring-your-app)
-- [Running Your Project Locally](#running-your-project-locally)
-- [Deploying Your App](#deploying-your-app)
-  - [Viewing Activity Logs](#viewing-activity-logs)
-- [Project Structure](#project-structure)
-- [Resources](#resources)
+This app uses Slack's
+[next-generation hosted platform](https://api.slack.com/future) to bring the
+latest AI models from OpenAI available in a Slack conversation.
 
 ---
 
@@ -29,6 +13,12 @@ in a Slack channel.
   simple question by mentioing the app's bot user
 - **Discuss:** Runs when a user send a follow-up message in a discussion thread
   with ChatGPT
+
+## Todo list
+- A long response is currently split into multiple messages. This is not ideal
+- Markdown formatting is not fully supported by Slack, there's only a workaround
+- If the API takes long to respond, the token is revoked (at least locally)
+- When the wrokflow configuration is run, the direct message trigger is created even if there's already one
 
 ## Setup
 
@@ -55,10 +45,10 @@ Start by cloning this repository:
 
 ```zsh
 # Clone this project onto your machine
-$ slack create chatgpt-on-deno -t seratch/chatgpt-on-deno
+$ git clone https://github.com/BIIE-DeepIR/chatgpt-for-slack.git
 
 # Change into this project directory
-$ cd chatgpt-on-deno
+$ cd chagpt-for-slack
 ```
 
 ## Save Env Values
@@ -99,8 +89,9 @@ that Shortcut URLs will be different across each workspace, as well as between
 the Workspace that you'd like to create the trigger in. Each Workspace has a
 development version (denoted by `(dev)`), as well as a deployed version.
 
-To create a link trigger for the workflow that enables end-users to configure
-the ChatGPT workflow in this template, run the following command:
+If not selected when the app was first run/installed, create a link trigger for
+the workflow that enables end-users to configure the ChatGPT workflow in this
+template, run the following command:
 
 ```zsh
 $ slack trigger create --trigger-def triggers/configure_link.ts
@@ -113,6 +104,12 @@ a bookmark in a channel of the Workspace you selected.
 **Note: this link won't run the workflow until the app is either running locally
 or deployed!** Read on to learn how to run your app locally and eventually
 deploy it to Slack hosting.
+
+**Creating further triggers**
+Only one trigger can be specified from a file when installing the app. The current
+setup installs the link trigger. When you run the workflow through the link shortcut
+you will run the configuration. In `configuration.ts` file the respective triggers are
+then created to keep track of @ mentions or direct messages.
 
 ## Running Your Project Locally
 
@@ -149,6 +146,15 @@ bot's message in its thread:
 
 <img width="500" src="https://user-images.githubusercontent.com/19658/226806078-40fc9c61-c3e9-4204-ac0f-16433ec8f9a7.png">
 
+You can also have a private chat with the ScienceBot by:
+This is how it works:
+1. Click on the @ScienceBot tag
+2. Click "Message"
+3. Now you have a private chat between just you and the ScienceBot. Write a message as a prompt.
+4. You will shortly receive a reply to that message from ScienceBot
+5. To continue the conversation, write the next message in the open thread
+6. To start a new conversation, write a new prompt directly to the main chat
+
 ## Deploying Your App
 
 Once you're done with development, you can deploy the production version of your
@@ -171,6 +177,17 @@ the `slack activity` command:
 
 ```zsh
 $ slack activity
+```
+
+### Other useful commands
+
+Some commands that can come handy when managing the application:
+
+```zsh
+$ slack triggers list
+$ slack trigger delete --trigger-id <ID HERE>
+$ slack uninstall
+$ slack env add OPENAI_MODEL o1-mini
 ```
 
 ## Project Structure
