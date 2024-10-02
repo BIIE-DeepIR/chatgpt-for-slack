@@ -16,9 +16,8 @@ latest AI models from OpenAI available in a Slack conversation.
 
 ## Todo list
 - A long response is currently split into multiple messages. This is not ideal
-- Markdown formatting is not fully supported by Slack, there's only a workaround
-- If the API takes long to respond, the token is revoked (at least locally)
-- When the wrokflow configuration is run, the direct message trigger is created even if there's already one
+- If the API takes long to respond, the token is revoked
+- Choice for user to select the model, or choose it based on the prompt complexity
 
 ## Setup
 
@@ -126,25 +125,9 @@ Connected, awaiting events
 
 Once running, click the
 [previously created Shortcut URL](#create-a-link-trigger) associated with the
-`(dev)` version of your app. This should start the included sample workflow.
+`(dev)` version of your app. This should create the direct message triggers for all the users.
 
 To stop running locally, press `<CTRL> + C` to end the process.
-
-When you click the link trigger URL in Slack, you can configure the channel list
-as below:
-
-<img width="500" src="https://user-images.githubusercontent.com/19658/226806063-97581a0a-490c-4367-9fd2-362c12724e10.png">
-
-Once the translator is added to a channel, you can mention `@ChatGPT on Deno`
-(you can rename it by editing `manfest.ts`) with a simple question. The app will
-respond to your question quickly.
-
-<img width="500" src="https://user-images.githubusercontent.com/19658/226806071-052ec55e-42ca-4a09-bab7-337cb810bd44.png">
-
-If you have follow-up questions or requests to ChatGPT, you can reply to the
-bot's message in its thread:
-
-<img width="500" src="https://user-images.githubusercontent.com/19658/226806078-40fc9c61-c3e9-4204-ac0f-16433ec8f9a7.png">
 
 You can also have a private chat with the ScienceBot by:
 This is how it works:
