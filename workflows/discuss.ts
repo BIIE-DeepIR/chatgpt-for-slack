@@ -8,8 +8,8 @@ const workflow = DefineWorkflow({
     properties: {
       channel_id: { type: Schema.slack.types.channel_id },
       message_ts: { type: Schema.types.string },
-      thread_ts: { type: Schema.types.string },
       user_id: { type: Schema.slack.types.user_id },
+      thread_ts: { type: Schema.types.string },
     },
     required: ["channel_id", "message_ts"],
   },
@@ -17,9 +17,9 @@ const workflow = DefineWorkflow({
 
 workflow.addStep(Discuss, {
   channel_id: workflow.inputs.channel_id,
+  user_id: workflow.inputs.user_id,
   message_ts: workflow.inputs.message_ts,
   thread_ts: workflow.inputs.thread_ts,
-  user_id: workflow.inputs.user_id,
 });
 
 export default workflow;

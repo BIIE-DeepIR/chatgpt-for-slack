@@ -1,5 +1,6 @@
 import { DefineFunction, Schema, SlackFunction } from "deno-slack-sdk/mod.ts";
 import { SlackAPIClient } from "slack-web-api-client/mod.ts";
+import { replyFunction } from "./quick_reply.ts";
 
 import {
   API_KEY_ERROR,
@@ -17,9 +18,9 @@ export const def = DefineFunction({
   input_parameters: {
     properties: {
       channel_id: { type: Schema.slack.types.channel_id },
+      user_id: { type: Schema.slack.types.user_id },
       message_ts: { type: Schema.types.string },
       thread_ts: { type: Schema.types.string },
-      user_id: { type: Schema.slack.types.user_id },
     },
     required: ["channel_id", "message_ts", "user_id"],
   },
@@ -31,9 +32,7 @@ export const def = DefineFunction({
 
 export default SlackFunction(def, async ({ inputs, env, token }) => {
   const client = new SlackAPIClient(token);
-  if (!inputs.thread_ts) {
-    return { outputs: {} };
-  }
+
   const authTest = await client.auth.test();
   const thisAppBotUserId = authTest.user_id;
   if (inputs.user_id === thisAppBotUserId) {
@@ -46,6 +45,27 @@ export default SlackFunction(def, async ({ inputs, env, token }) => {
     return { error: API_KEY_ERROR };
   }
 
+  if (!inputs.thread_ts) {
+      const original_question = await client.conversations.history({
+            channel: inputs.channel_id,
+            ts: inputs.message_ts,
+            include_all_metadata: true,
+            inclusive: true,
+            limit: 1,
+      });
+      if (original_question.messages[0].thread_ts == null) {
+          return replyFunction(
+              inputs.channel_id,
+              inputs.user_id,
+              original_question.messages[0].text,
+              inputs.message_ts,
+              env,
+              client
+          );
+      } else {
+          inputs.thread_ts = original_question.messages[0].thread_ts;
+      }
+  }
   const replies = await client.conversations.replies({
     channel: inputs.channel_id,
     ts: inputs.thread_ts,
@@ -59,7 +79,6 @@ export default SlackFunction(def, async ({ inputs, env, token }) => {
   }
   const messages: Message[] = [];
 
-//   messages.push({ role: "user", content: "You're helping out scientists over Slack. Please format your answers in Slack-compatible markdown (e.g. no headers, tables, footnotes, HTML tags. Bold works with single asterisk.)." });
   let isDiscussion = false;
   for (const message of replies.messages || []) {
     if (
@@ -73,7 +92,6 @@ export default SlackFunction(def, async ({ inputs, env, token }) => {
         return { outputs: {} };
       }
       // Append the first question from the user
-      messages.push({ role: "user", content: question });
       isDiscussion = true;
     }
     messages.push({
@@ -90,7 +108,7 @@ export default SlackFunction(def, async ({ inputs, env, token }) => {
     ? env.OPENAI_MODEL as OpenAIModel
     : OpenAIModel.GPT_3_5_TURBO;
   const maxTokensForThisReply = 1024;
-  const modelLimit = model === OpenAIModel.GPT_4 ? 6000 : 4000;
+  const modelLimit = model === OpenAIModel.GPT_4 ? 100000 : 30000;
   while (calculateNumTokens(messages) > modelLimit - maxTokensForThisReply) {
     messages.shift();
   }

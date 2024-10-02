@@ -8,8 +8,7 @@ import workflowDef from "../workflows/configure.ts";
 const trigger: Trigger<typeof workflowDef.definition> = {
   type: type.Shortcut,
   name: "Configurator for ChatGPT app",
-  workflow: `#/workflows/${workflowDef.definition.callback_id}`,
-  inputs: { interactivity: { value: data.Shortcut.interactivity } },
+  workflow: `#/workflows/${workflowDef.definition.callback_id}`
 };
 
 export default trigger;

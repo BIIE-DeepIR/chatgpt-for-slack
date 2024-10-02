@@ -11,13 +11,9 @@ export const def = DefineFunction({
   source_file: "functions/configure.ts",
   input_parameters: {
     properties: {
-      interactivityPointer: { type: Schema.types.string },
-      quickReplyWorkflowId: { type: Schema.types.string },
       discussWorkflowId: { type: Schema.types.string },
     },
     required: [
-      "interactivityPointer",
-      "quickReplyWorkflowId",
       "discussWorkflowId",
     ],
   },
@@ -31,198 +27,33 @@ export default SlackFunction(def, async ({ inputs, token, env }) => {
   const client = new SlackAPIClient(token);
   const debugMode = isDebugMode(env);
 
-  // ---------------------------
-  // Find existing triggers to update
-  // ---------------------------
-  const triggersToUpdate = await Promise.all([
-    findTriggerToUpdate(
-      client,
-      "app_mentioned",
-      inputs.quickReplyWorkflowId,
-      debugMode,
-    ),
-    findTriggerToUpdate(
-      client,
-      "message_posted",
-      inputs.discussWorkflowId,
-      debugMode,
-    ),
-    findTriggerToUpdate(
-      client,
-      "message_posted",
-      inputs.quickReplyWorkflowId,
-      debugMode,
-    ),
-  ]);
-
-  const [appMentionedTrigger, messagePostedTrigger, dmTrigger] = triggersToUpdate;
-
-  // Extract channel IDs for channel-based triggers
-  const channelIds = appMentionedTrigger?.channel_ids || [];
-
-  // ---------------------------
-  // Open the modal for configuring the channel list
-  // ---------------------------
-  const response = await client.views.open({
-    interactivity_pointer: inputs.interactivityPointer,
-    view: buildModalView(channelIds),
-  });
-  if (!response.ok) {
-    if (debugMode) {
-      console.log(`views.open response: ${JSON.stringify(response)}`);
-    }
-    const error =
-      `Failed to open a modal in the configurator workflow. Contact the app maintainers with the following information - (error: ${response.error})`;
-    return { error };
+  try {
+  // If the trigger already exists, we update it.
+  // Otherwise, we create a new one.
+  const messageTriggerToUpdate = await findTriggerToUpdate(
+    client,
+    "message_posted",
+    inputs.discussWorkflowId,
+    debugMode,
+  );
+  // If the trigger already exists, we update it.
+  // Otherwise, we create a new one.
+  await createOrUpdateDirectMessageTrigger(
+    client,
+    inputs.discussWorkflowId,
+    debugMode,
+    messageTriggerToUpdate,
+  );
+  } catch (e) {
+    console.log(e);
+    modalMessage = e;
   }
+
   return {
     // Set this to continue the interaction with this user
     completed: false,
   };
 })
-  // ---------------------------
-  // view_submission handler
-  // ---------------------------
-  .addViewSubmissionHandler(
-    ["configure-workflow"],
-    async ({ view, inputs, token, env }) => {
-      const client = new SlackAPIClient(token);
-      const debugMode = isDebugMode(env);
-      const channelIds = view.state.values.block.channels.selected_channels;
-
-      let modalMessage =
-        "*You're all set!*\n\nThis ChatGPT is now available for the channels :white_check_mark:";
-      try {
-        // If the trigger already exists, we update it.
-        // Otherwise, we create a new one.
-        if (channelIds) {
-            const appMentionedTriggerToUpdate = await findTriggerToUpdate(
-              client,
-              "app_mentioned",
-              inputs.quickReplyWorkflowId,
-              debugMode,
-            );
-            await createOrUpdateAppMentionedTrigger(
-              client,
-              inputs.quickReplyWorkflowId,
-              channelIds,
-              appMentionedTriggerToUpdate,
-            );
-        }
-        const messageTriggerToUpdate = await findTriggerToUpdate(
-          client,
-          "message_posted",
-          inputs.discussWorkflowId,
-          debugMode,
-        );
-        // If the trigger already exists, we update it.
-        // Otherwise, we create a new one.
-        await createOrUpdateMessageTrigger(
-          client,
-          inputs.discussWorkflowId,
-          channelIds,
-          messageTriggerToUpdate,
-        );
-        await createOrUpdateDirectMessageTrigger(
-          client,
-          inputs.quickReplyWorkflowId,
-          channelIds,
-          messageTriggerToUpdate,
-        );
-        // This app's bot user joins all the channels
-        // to perform API calls for the channels
-        const error = await joinAllChannels(
-          client,
-          channelIds,
-          debugMode,
-        );
-        if (error) {
-          modalMessage = error;
-        }
-      } catch (e) {
-        console.log(e);
-        modalMessage = e;
-      }
-      // nothing to return if you want to close this modal
-      return buildModalUpdateResponse(modalMessage);
-    },
-  )
-  // ---------------------------
-  // view_closed handler
-  // ---------------------------
-  .addViewClosedHandler(
-    ["configure-workflow"],
-    ({ view }) => {
-      console.log(`view_closed handler called: ${JSON.stringify(view)}`);
-      return {
-        outputs: {},
-        completed: true,
-      };
-    },
-  );
-
-// ---------------------------
-// Internal functions
-// ---------------------------
-
-function buildModalView(channelIds: string[]): ModalView {
-  return {
-    "type": "modal",
-    "callback_id": "configure-workflow",
-    "title": {
-      "type": "plain_text",
-      "text": "ChatGPT App",
-    },
-    "notify_on_close": true,
-    "submit": {
-      "type": "plain_text",
-      "text": "Confirm",
-    },
-    "blocks": [
-      {
-        "type": "input",
-        "block_id": "block",
-        "element": {
-          "type": "multi_channels_select",
-          "placeholder": {
-            "type": "plain_text",
-            "text": "Select channels to add",
-          },
-          "initial_channels": channelIds,
-          "action_id": "channels",
-        },
-        "label": {
-          "type": "plain_text",
-          "text": "Channels to enable ChatGPT",
-        },
-      },
-    ],
-  };
-}
-
-function buildModalUpdateResponse(modalMessage: string) {
-  return {
-    response_action: "update",
-    view: {
-      "type": "modal",
-      "callback_id": "configure-workflow",
-      "notify_on_close": true,
-      "title": {
-        "type": "plain_text",
-        "text": "ChatGPT App",
-      },
-      "blocks": [
-        {
-          "type": "section",
-          "text": {
-            "type": "mrkdwn",
-            "text": modalMessage,
-          },
-        },
-      ],
-    },
-  };
-}
 
 // ------------------------------
 // Common utilities
@@ -263,169 +94,6 @@ export async function findTriggerToUpdate(
   return triggerToUpdate;
 }
 
-// ------------------------------
-// app_mentioned events
-// ------------------------------
-
-const appMentionedTriggerInputs = {
-  channel_id: { value: "{{data.channel_id}}" },
-  user_id: { value: "{{data.user_id}}" },
-  message_ts: { value: "{{data.message_ts}}" },
-  text: { value: "{{data.text}}" },
-};
-
-export async function createOrUpdateAppMentionedTrigger(
-  client: SlackAPIClient,
-  workflowCallbackId: string,
-  channelIds: string[],
-  triggerToUpdate?: EventTrigger,
-) {
-  // deno-lint-ignore no-explicit-any
-  const channel_ids = channelIds as any;
-  if (channel_ids.length == 0) {
-      console.log("stopping");
-      return false;
-  }
-
-  if (triggerToUpdate === undefined) {
-    // Create a new trigger
-    const creation = await client.workflows.triggers.create({
-      type: "event",
-      name: "app_mentioned event trigger",
-      workflow: `#/workflows/${workflowCallbackId}`,
-      event: {
-        event_type: "slack#/events/app_mentioned",
-        channel_ids,
-      },
-      inputs: appMentionedTriggerInputs,
-    });
-    if (creation.error) {
-      throw new Error(
-        `Failed to create a trigger! (response: ${JSON.stringify(creation)})`,
-      );
-    }
-    console.log(`A new trigger created: ${JSON.stringify(creation)}`);
-  } else {
-    // Update the existing trigger
-    const update = await client.workflows.triggers.update({
-      trigger_id: triggerToUpdate.id,
-      type: "event",
-      name: "app_mentioned event trigger",
-      workflow: `#/workflows/${workflowCallbackId}`,
-      event: {
-        event_type: "slack#/events/app_mentioned",
-        channel_ids,
-      },
-      inputs: appMentionedTriggerInputs,
-    });
-    if (update.error) {
-      throw new Error(
-        `Failed to update a trigger! (response: ${JSON.stringify(update)})`,
-      );
-    }
-    console.log(`The trigger updated: ${JSON.stringify(update)}`);
-  }
-}
-
-// ------------------------------
-// joining channels
-// ------------------------------
-
-export async function joinAllChannels(
-  client: SlackAPIClient,
-  channelIds: string[],
-  debugMode: boolean,
-) {
-  const futures = channelIds.map((c) => joinChannel(client, c, debugMode));
-  const results = (await Promise.all(futures)).filter((r) => r !== undefined);
-  if (results.length > 0) {
-    return results[0];
-  }
-  return undefined;
-}
-
-async function joinChannel(
-  client: SlackAPIClient,
-  channel_id: string,
-  debugMode: boolean,
-) {
-  const response = await client.conversations.join({ channel: channel_id });
-  if (debugMode) {
-    console.log(`conversations.join API result: ${JSON.stringify(response)}`);
-  }
-  if (response.error) {
-    const error = `Failed to join <#${channel_id}> due to ${response.error}`;
-    console.log(error);
-    return error;
-  }
-}
-
-// ------------------------------
-// message_posted events
-// ------------------------------
-
-const messageTriggerInputs = {
-  channel_id: { value: "{{data.channel_id}}" },
-  user_id: { value: "{{data.user_id}}" },
-  message_ts: { value: "{{data.message_ts}}" },
-  thread_ts: { value: "{{data.thread_ts}}" },
-  text: { value: "{{data.text}}" },
-};
-
-export async function createOrUpdateMessageTrigger(
-  client: SlackAPIClient,
-  workflowCallbackId: string,
-  channelIds: string[],
-  triggerToUpdate?: EventTrigger,
-) {
-  // deno-lint-ignore no-explicit-any
-  const channel_ids = channelIds as any;
-  if (channel_ids.length == 0) {
-      console.log("stopping");
-      return false;
-  }
-
-  if (triggerToUpdate === undefined) {
-    // Create a new trigger
-    const creation = await client.workflows.triggers.create({
-      type: "event",
-      name: "message_posted event trigger",
-      workflow: `#/workflows/${workflowCallbackId}`,
-      event: {
-        event_type: "slack#/events/message_posted",
-        channel_ids,
-        filter: { version: 1, root: { statement: "1 == 1" } },
-      },
-      inputs: messageTriggerInputs,
-    });
-    if (creation.error) {
-      throw new Error(
-        `Failed to create a trigger! (response: ${JSON.stringify(creation)})`,
-      );
-    }
-    console.log(`A new trigger created: ${JSON.stringify(creation)}`);
-  } else {
-    // Update the existing trigger
-    const update = await client.workflows.triggers.update({
-      trigger_id: triggerToUpdate.id,
-      type: "event",
-      name: "message_posted event trigger",
-      workflow: `#/workflows/${workflowCallbackId}`,
-      event: {
-        event_type: "slack#/events/message_posted",
-        channel_ids,
-        filter: { version: 1, root: { statement: "1 == 1" } },
-      },
-      inputs: messageTriggerInputs,
-    });
-    if (update.error) {
-      throw new Error(
-        `Failed to update a trigger! (response: ${JSON.stringify(update)})`,
-      );
-    }
-    console.log(`The trigger updated: ${JSON.stringify(update)}`);
-  }
-}
 
 // ------------------------------
 // Direct Message (DM) Trigger
@@ -444,15 +112,12 @@ export async function createOrUpdateDirectMessageTrigger(
   client: SlackAPIClient,
   workflowCallbackId: string,
   debugMode: boolean,
-  channelIds: string[],
   triggerToUpdate?: EventTrigger,
 ) {
-  const channel_ids = channelIds as any;
   let userData = await client.users.list();
   let dmChannelIds = [];
   for (const infoSet of userData.members) {
       if (!infoSet.is_bot && infoSet.is_email_confirmed) {
-          console.log(infoSet.id);
           let response = await client.conversations.open({users: infoSet.id});
           dmChannelIds.push(response.channel.id);
       }

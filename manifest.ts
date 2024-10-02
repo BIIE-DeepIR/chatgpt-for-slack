@@ -1,13 +1,12 @@
 import { Manifest } from "deno-slack-sdk/mod.ts";
 import Configure from "./workflows/configure.ts";
-import QuickReply from "./workflows/quick_reply.ts";
 import Discuss from "./workflows/discuss.ts";
 
 export default Manifest({
   name: "ScienceBot",
   description: "Advanced AI assistant to help with science and coding challenges",
   icon: "assets/openai.png",
-  workflows: [Configure, QuickReply, Discuss],
+  workflows: [Configure, Discuss],
   outgoingDomains: ["api.openai.com"],
   features: {
     appHome: {

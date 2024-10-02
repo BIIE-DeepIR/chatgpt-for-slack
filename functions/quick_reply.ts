@@ -17,8 +17,8 @@ export const def = DefineFunction({
     properties: {
       channel_id: { type: Schema.slack.types.channel_id },
       user_id: { type: Schema.slack.types.user_id },
-      question: { type: Schema.types.string },
       message_ts: { type: Schema.types.string },
+      question: { type: Schema.types.string },
     },
     required: ["channel_id", "user_id", "question"],
   },
@@ -27,6 +27,52 @@ export const def = DefineFunction({
     required: ["answer"],
   },
 });
+
+export async function replyFunction(channel_id, user_id, question, message_ts, env, client) {
+    const messages: Message[] = [];
+    messages.push({
+        "role": "user",
+        "content": question.replaceAll("<@[^>]+>\s*", ""),
+    });
+
+    const apiKey = env.OPENAI_API_KEY;
+    const model = env.OPENAI_MODEL
+    ? env.OPENAI_MODEL as OpenAIModel
+    : OpenAIModel.GPT_3_5_TURBO;
+    const maxTokensForThisReply = 1024;
+    const modelLimit = model === OpenAIModel.GPT_4 ? 6000 : 4000;
+    while (calculateNumTokens(messages) > modelLimit - maxTokensForThisReply) {
+        messages.shift();
+    }
+    const body = JSON.stringify({
+        "model": model,
+        "messages": messages,
+    });
+    console.log(body);
+
+    let answer = await callOpenAI(apiKey, 60, body);
+    answer = answer.replace(/#/g, '*');
+    answer = answer.replace(/\*\*/g, '*');
+    answer = answer.replace(/\*\s\*/g, '*');
+    answer = answer.replace(/\*\*/g, '*');
+    const replyResponse = await client.chat.postMessage({
+        channel: channel_id,
+        text: `${answer}`,
+        thread_ts: message_ts,
+        mrkdwn: true,
+        metadata: {
+          "event_type": "chat-gpt-convo",
+          "event_payload": { "question": question },
+        },
+    });
+    if (replyResponse.error) {
+        const error =
+          `Failed to post ChatGPT's reply due to ${replyResponse.error}`;
+        return { error };
+    }
+    return { outputs: { answer } };
+}
+
 
 export default SlackFunction(def, async ({ inputs, env, token }) => {
   const client = new SlackAPIClient(token);
@@ -37,46 +83,12 @@ export default SlackFunction(def, async ({ inputs, env, token }) => {
     console.log(API_KEY_ERROR);
     return { error: API_KEY_ERROR };
   }
-  const messages: Message[] = [];
-//   messages.push({ role: "user", content: "You're helping out scientists over Slack. Please format your answers in Slack-compatible markdown (e.g. no headers, tables, footnotes, HTML tags. Bold works with single asterisk.)." });
-  messages.push({
-      "role": "user",
-      "content": inputs.question.replaceAll("<@[^>]+>\s*", ""),
-    })
-
-  const model = env.OPENAI_MODEL
-    ? env.OPENAI_MODEL as OpenAIModel
-    : OpenAIModel.GPT_3_5_TURBO;
-  const maxTokensForThisReply = 1024;
-  const modelLimit = model === OpenAIModel.GPT_4 ? 6000 : 4000;
-  while (calculateNumTokens(messages) > modelLimit - maxTokensForThisReply) {
-    messages.shift();
-  }
-  const body = JSON.stringify({
-    "model": model,
-    "messages": messages,
-  });
-  console.log(body);
-
-  let answer = await callOpenAI(apiKey, 60, body);
-  answer = answer.replace(/#/g, '*');
-  answer = answer.replace(/\*\*/g, '*');
-  answer = answer.replace(/\*\s\*/g, '*');
-  answer = answer.replace(/\*\*/g, '*');
-  const replyResponse = await client.chat.postMessage({
-    channel: inputs.channel_id,
-    text: `${answer}`,
-    thread_ts: inputs.message_ts,
-    mrkdwn: true,
-    metadata: {
-      "event_type": "chat-gpt-convo",
-      "event_payload": { "question": inputs.question },
-    },
-  });
-  if (replyResponse.error) {
-    const error =
-      `Failed to post ChatGPT's reply due to ${replyResponse.error}`;
-    return { error };
-  }
-  return { outputs: { answer } };
+  return replyFunction(
+      inputs.channel_id,
+      inputs.user_id,
+      inputs.question,
+      inputs.message_ts,
+      env,
+      client
+  );
 });
